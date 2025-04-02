@@ -571,7 +571,7 @@ test "default migration" {
     try std.testing.expectEqualStrings(default_migration, rendered);
 }
 
-test "migration from command line: create table with default values" {
+test "migration from command line: create table" {
     const command = "table:create:cats column:name:string:index:unique column:paws:integer:default:4 column:bio:text:default:friendly_cat column:is_active:boolean:default:true column:no_default:string:optional column:human_id:index:optional:reference:humans.id";
 
     const migration = Migration.init(
@@ -614,35 +614,8 @@ test "migration from command line: create table with default values" {
     try std.testing.expect(!std.mem.containsAtLeast(u8, rendered, 1, "\"no_default\", .string, .{ .optional = true, .default"));
 }
 
-test "migration from command line: drop table" {
-    const command = "table:drop:cats";
-
-    const migration = Migration.init(
-        std.testing.allocator,
-        "test_migration",
-        .{ .command = command },
-    );
-    const rendered = try migration.render();
-    defer std.testing.allocator.free(rendered);
-
-    try std.testing.expectEqualStrings(
-        \\const std = @import("std");
-        \\const jetquery = @import("jetquery");
-        \\const t = jetquery.schema.table;
-        \\
-        \\pub fn up(repo: anytype) !void {
-        \\    try repo.dropTable("cats", .{});
-        \\}
-        \\
-        \\pub fn down(repo: anytype) !void {
-        \\    _ = repo;
-        \\}
-        \\
-    , rendered);
-}
-
-test "defaults migration generates expected SQL" {
-    const command = "table:create:defaults_test column:name:string:default:'John' column:count:integer:default:42 column:active:boolean:default:true column:no_default:string:optional column:price:decimal:default:19.99 column:last_update:datetime:default:now()";
+test "migration from command line: create table with default values of various types" {
+    const command = "table:create:defaults_test column:name:string:default:John column:count:integer:default:42 column:active:boolean:default:true column:no_default:string:optional column:price:decimal:default:19.99 column:last_update:datetime:default:now()";
 
     const migration = Migration.init(
         std.testing.allocator,
@@ -676,6 +649,33 @@ test "defaults migration generates expected SQL" {
         \\
         \\pub fn down(repo: anytype) !void {
         \\    try repo.dropTable("defaults_test", .{});
+        \\}
+        \\
+    , rendered);
+}
+
+test "migration from command line: drop table" {
+    const command = "table:drop:cats";
+
+    const migration = Migration.init(
+        std.testing.allocator,
+        "test_migration",
+        .{ .command = command },
+    );
+    const rendered = try migration.render();
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings(
+        \\const std = @import("std");
+        \\const jetquery = @import("jetquery");
+        \\const t = jetquery.schema.table;
+        \\
+        \\pub fn up(repo: anytype) !void {
+        \\    try repo.dropTable("cats", .{});
+        \\}
+        \\
+        \\pub fn down(repo: anytype) !void {
+        \\    _ = repo;
         \\}
         \\
     , rendered);
