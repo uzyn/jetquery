@@ -635,7 +635,7 @@ test "migration from command line: create table with default values of various t
         \\        "defaults_test",
         \\        &.{
         \\            t.primaryKey("id", .{}),
-        \\            t.column("name", .string, .{ .default = "'John'" }),
+        \\            t.column("name", .string, .{ .default = "John" }),
         \\            t.column("count", .integer, .{ .default = "42" }),
         \\            t.column("active", .boolean, .{ .default = "true" }),
         \\            t.column("no_default", .string, .{ .optional = true }),
