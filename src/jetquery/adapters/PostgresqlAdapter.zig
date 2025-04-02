@@ -380,6 +380,11 @@ pub fn identifierAlloc(allocator: std.mem.Allocator, value: []const u8) ![]const
 
 /// SQL fragment used to represent a column bound to a table, e.g. `"foo"."bar"`
 pub fn columnSql(comptime column: jetquery.columns.Column) []const u8 {
+    const source = if (column.sql == null)
+        column.from orelse column.table.name
+    else
+        null;
+
     return if (column.function) |function|
         std.fmt.comptimePrint(
             \\{s}("{s}"."{s}")
@@ -391,7 +396,7 @@ pub fn columnSql(comptime column: jetquery.columns.Column) []const u8 {
                 .avg => "AVG",
                 .sum => "SUM",
             },
-            column.table.name,
+            source,
             column.name,
         })
     else if (column.sql) |sql|
@@ -399,7 +404,7 @@ pub fn columnSql(comptime column: jetquery.columns.Column) []const u8 {
     else
         std.fmt.comptimePrint(
             \\"{s}"."{s}"
-        , .{ column.table.name, column.name });
+        , .{ source, column.name });
 }
 
 /// SQL fragment used to indicate a primary key.
@@ -456,7 +461,7 @@ pub fn countSql(comptime distinct: ?[]const jetquery.columns.Column) []const u8 
             size += std.fmt.count(
                 template,
                 .{
-                    identifier(column.table.name),
+                    identifier(column.from orelse column.table.name),
                     identifier(column.name),
                     if (index + 1 < distinct_columns.len) ", " else "",
                 },
@@ -468,7 +473,7 @@ pub fn countSql(comptime distinct: ?[]const jetquery.columns.Column) []const u8 
             const column_sql = std.fmt.comptimePrint(
                 template,
                 .{
-                    identifier(column.table.name),
+                    identifier(column.from orelse column.table.name),
                     identifier(column.name),
                     if (index + 1 < distinct_columns.len) ", " else "",
                 },
@@ -490,13 +495,14 @@ pub fn innerJoinSql(
     const primary_key = options.primary_key orelse "id";
 
     return std.fmt.comptimePrint(
-        \\ INNER JOIN "{s}" ON "{s}"."{s}" = "{s}"."{s}"
+        \\ INNER JOIN "{s}" AS "{s}" ON "{s}"."{s}" = "{s}"."{s}"
     ,
         .{
             JoinTable.name,
+            relation_name,
             Table.name,
             foreign_key,
-            JoinTable.name,
+            relation_name,
             primary_key,
         },
     );
@@ -512,13 +518,14 @@ pub fn outerJoinSql(
     const primary_key = options.primary_key orelse "id";
 
     return std.fmt.comptimePrint(
-        \\ LEFT OUTER JOIN "{s}" ON "{s}"."{s}" = "{s}"."{s}"
+        \\ LEFT OUTER JOIN "{s}" AS "{s}" ON "{s}"."{s}" = "{s}"."{s}"
     ,
         .{
             JoinTable.name,
+            relation_name,
             Table.name,
             foreign_key,
-            JoinTable.name,
+            relation_name,
             primary_key,
         },
     );

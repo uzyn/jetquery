@@ -191,11 +191,20 @@ const Command = struct {
             }
 
             fn writeColumn(column: Column, writer: anytype) !void {
+                var column_type: DataType = undefined;
+                if (column.type) |t| {
+                    column_type = t;
+                } else if (column.reference_column != null) {
+                    column_type = .integer;
+                } else {
+                    column_type = .string;
+                }
+
                 try writer.print(
                     \\t.column("{s}", .{s}, .{{
                 , .{
                     column.name orelse return error.MissingColumnName,
-                    @tagName(column.type orelse .string),
+                    @tagName(column_type),
                 });
                 var options_count: usize = 0;
                 inline for (comptime std.enums.values(Column.options)) |tag| {
@@ -351,7 +360,7 @@ const Command = struct {
                         } else if (token.* == .column and token.*.column.reference == true) {
                             token.column.reference_column = modifier;
                         } else if (token.* == .column and std.mem.eql(u8, modifier, "default")) {
-                            token.column.default = "";  // Set it to empty string to mark it needs a value
+                            token.column.default = ""; // Set it to empty string to mark it needs a value
                         } else if (token.* == .column and token.column.default != null and token.column.default.?.len == 0) {
                             token.column.default = modifier;
                         } else {
@@ -600,7 +609,7 @@ test "migration from command line: create table with default values" {
         \\}
         \\
     , rendered);
-    
+
     // Verify that no DEFAULT clause appears for the no_default field
     try std.testing.expect(!std.mem.containsAtLeast(u8, rendered, 1, "\"no_default\", .string, .{ .optional = true, .default"));
 }
