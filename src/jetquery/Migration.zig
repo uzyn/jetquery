@@ -641,6 +641,46 @@ test "migration from command line: drop table" {
     , rendered);
 }
 
+test "defaults migration generates expected SQL" {
+    const command = "table:create:defaults_test column:name:string:default:'John' column:count:integer:default:42 column:active:boolean:default:true column:no_default:string:optional column:price:decimal:default:19.99 column:last_update:datetime:default:now()";
+
+    const migration = Migration.init(
+        std.testing.allocator,
+        "test_defaults",
+        .{ .command = command },
+    );
+    const rendered = try migration.render();
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expectEqualStrings(
+        \\const std = @import("std");
+        \\const jetquery = @import("jetquery");
+        \\const t = jetquery.schema.table;
+        \\
+        \\pub fn up(repo: anytype) !void {
+        \\    try repo.createTable(
+        \\        "defaults_test",
+        \\        &.{
+        \\            t.primaryKey("id", .{}),
+        \\            t.column("name", .string, .{ .default = "'John'" }),
+        \\            t.column("count", .integer, .{ .default = "42" }),
+        \\            t.column("active", .boolean, .{ .default = "true" }),
+        \\            t.column("no_default", .string, .{ .optional = true }),
+        \\            t.column("price", .decimal, .{ .default = "19.99" }),
+        \\            t.column("last_update", .datetime, .{ .default = "now()" }),
+        \\            t.timestamps(.{}),
+        \\        },
+        \\        .{},
+        \\    );
+        \\}
+        \\
+        \\pub fn down(repo: anytype) !void {
+        \\    try repo.dropTable("defaults_test", .{});
+        \\}
+        \\
+    , rendered);
+}
+
 test "migration from command line: alter table" {
     // XXX: This is an incoherent migration (renaming table while adding columns not permitted)
     // but it tests a lot of variations all in one command. We let the database fail if the
