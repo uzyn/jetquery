@@ -128,6 +128,28 @@ test "migrate" {
             },
             .{ .relations = .{ .cats = jetquery.relation.hasMany(.Cat, .{}) } },
         );
+        // Include the defaults_test table in our test schema
+        pub const DefaultsTest = jetquery.Model(
+            @This(),
+            "defaults_test",
+            struct {
+                id: i32,
+                name: []const u8,
+                count: i32,
+                active: bool,
+                description: []const u8,
+                score: f32,
+                no_default: ?[]const u8,
+                price: f64,
+                small_count: i16,
+                big_count: i64,
+                precise_value: f64,
+                last_update: jetcommon.types.DateTime,
+                created_at: jetcommon.types.DateTime,
+                updated_at: jetcommon.types.DateTime,
+            },
+            .{},
+        );
     };
 
     var migrate_repo = try jetquery.Repo(.postgresql, MigrateSchema).init(
@@ -168,24 +190,48 @@ test "migrate" {
 
     try std.testing.expect(migration != null);
 
-    const query = test_repo.Query(.Human)
+    // Check human-cats query
+    const human_cats_query = test_repo.Query(.Human)
         .join(.inner, .cats)
         .select(.{ .id, .name, .{ .cats = .{ .name, .paws, .created_at, .updated_at } } });
-    var result = try test_repo.execute(query);
+    var result = try test_repo.execute(human_cats_query);
     try result.drain();
     defer result.deinit();
 
+    // Check defaults_test table is accessible
+    const defaults_query = test_repo.Query(.DefaultsTest)
+        .select(.{ .id, .name, .count, .active });
+    var defaults_result = try test_repo.execute(defaults_query);
+    try defaults_result.drain();
+    defer defaults_result.deinit();
+
+    // Roll back defaults_test migration
     try migrate.rollback();
 
-    try std.testing.expectError(error.PG, test_repo.execute(query));
+    // The defaults_test table should be dropped, so this should fail
+    try std.testing.expectError(error.PG, test_repo.execute(defaults_query));
+    
+    // Human-cats query should still work after first rollback
+    var human_cats_result = try test_repo.execute(human_cats_query);
+    try human_cats_result.drain();
+    defer human_cats_result.deinit();
 
+    // After rolling back defaults_test, human table should still exist
     {
         const humans = try test_repo.Query(.Human).all(&test_repo);
         defer test_repo.free(humans);
     }
 
+    // Rollback the create_cats migration
     try migrate.rollback();
 
+    // After rolling back cats, human table should still exist but can't join to cats
+    try std.testing.expectError(error.PG, test_repo.execute(human_cats_query));
+
+    // Rollback the create_humans migration
+    try migrate.rollback();
+
+    // After rolling back humans, human table should no longer exist
     {
         const humans = test_repo.Query(.Human).all(&test_repo);
         try std.testing.expectError(error.PG, humans);

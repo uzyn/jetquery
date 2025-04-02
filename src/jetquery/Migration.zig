@@ -597,7 +597,7 @@ test "migration from command line: create table with default values" {
         \\            t.column("bio", .text, .{ .default = "friendly_cat" }),
         \\            t.column("is_active", .boolean, .{ .default = "true" }),
         \\            t.column("no_default", .string, .{ .optional = true }),
-        \\            t.column("human_id", .string, .{ .optional = true, .index = true, .reference = .{ "humans", "id" } }),
+        \\            t.column("human_id", .integer, .{ .optional = true, .index = true, .reference = .{ "humans", "id" } }),
         \\            t.timestamps(.{}),
         \\        },
         \\        .{},
