@@ -15,9 +15,21 @@ pub fn up(repo: anytype) !void {
         .{},
     );
 
+    // Create an index using the built-in method
     try repo.createIndex("cats", &.{ "name", "paws" }, .{});
+    
+    // Alternative approach using raw SQL to add a unique constraint
+    // This demonstrates how to use raw SQL for operations not fully supported by JetQuery
+    try repo.executeSqlRaw(
+        "ALTER TABLE cats ADD CONSTRAINT unique_name_paws UNIQUE (name, paws)",
+    );
 }
 
 pub fn down(repo: anytype) !void {
+    // Raw SQL can also be used in the down function
+    try repo.executeSqlRaw(
+        "ALTER TABLE cats DROP CONSTRAINT IF EXISTS unique_name_paws",
+    );
+    
     try repo.dropTable("cats", .{});
 }

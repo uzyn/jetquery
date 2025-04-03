@@ -10,7 +10,7 @@ Documentation: [https://www.jetzig.dev/documentation/sections/database/introduct
 * PostgreSQL adapter ([pg.zig](https://github.com/karlseguin/pg.zig))
 * Powerful `WHERE` clause syntax
 * Object Relational Mapper (ORM)
-* Migrations
+* Migrations (with support for raw SQL)
 * Relations/Associations
 
 Use [standalone](https://www.jetzig.dev/documentation/sections/database/standalone_usage) or with [Jetzig](https://www.jetzig.dev/).
@@ -64,6 +64,38 @@ for (try repo.all(query)) |cat| {
         std.debug.print("{s}\n", .{home.zip_code});
     }
 }
+```
+
+## Raw SQL in Migrations
+
+JetQuery supports executing raw SQL commands in migrations for advanced database operations not yet fully supported by the schema builder:
+
+```zig
+// Directly in migration files:
+pub fn up(repo: anytype) !void {
+    // Create a table using JetQuery's schema builder
+    try repo.createTable(...);
+    
+    // Add a unique constraint using raw SQL
+    try repo.executeSqlRaw(
+        "ALTER TABLE my_table ADD CONSTRAINT unique_constraint UNIQUE (column1, column2)",
+    );
+}
+
+pub fn down(repo: anytype) !void {
+    // Remove constraint in the down migration
+    try repo.executeSqlRaw(
+        "ALTER TABLE my_table DROP CONSTRAINT unique_constraint",
+    );
+    
+    try repo.dropTable(...);
+}
+```
+
+From the command line when generating migrations:
+
+```
+jetzig database generate --name add_unique_constraint sql:up:ALTER TABLE clips_tags ADD CONSTRAINT unique_clip_tag UNIQUE (clip_id, tag_id):down:ALTER TABLE clips_tags DROP CONSTRAINT unique_clip_tag
 ```
 
 ## Testing

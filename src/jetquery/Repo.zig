@@ -749,6 +749,22 @@ pub fn Repo(adapter_name: jetquery.adapters.Name, Schema: type) type {
             );
         }
 
+        /// Execute raw SQL directly. Use this for database operations that are not yet
+        /// supported by JetQuery's schema manipulation functions.
+        /// Note: Use with caution as this bypasses JetQuery's type safety and validation.
+        pub fn executeSqlRaw(
+            self: *AdaptedRepo,
+            sql: []const u8,
+        ) !void {
+            const connection = try self.connectManaged();
+            try connection.executeVoid(
+                sql,
+                .{},
+                try jetquery.debug.getCallerInfo(self.debugMutex(), @returnAddress()),
+                self,
+            );
+        }
+
         // Internally used by `createTable` - use `createIndex` to create a single index.
         fn createIndexes(
             self: *AdaptedRepo,
@@ -1375,6 +1391,59 @@ test "missing config options" {
 
     const repo = Repo(.postgresql, struct {}).init(std.testing.allocator, .{ .adapter = .{} });
     try std.testing.expectError(error.JetQueryConfigError, repo);
+}
+
+test "raw SQL" {
+    try resetDatabase();
+
+    const Schema = struct {
+        pub const Cat = jetquery.Model(
+            @This(),
+            "cats",
+            struct { name: []const u8, paws: i32 },
+            .{},
+        );
+    };
+
+    {
+        var repo = try Repo(.postgresql, Schema).init(
+            std.testing.allocator,
+            .{
+                .adapter = .{
+                    .database = "repo_test",
+                    .username = "postgres",
+                    .hostname = "127.0.0.1",
+                    .password = "password",
+                    .port = 5432,
+                },
+            },
+        );
+        defer repo.deinit();
+
+        // Create table
+        try repo.createTable("cats", &.{
+            jetquery.schema.table.column("name", .string, .{}),
+            jetquery.schema.table.column("paws", .integer, .{}),
+        }, .{});
+
+        // Add a unique constraint using raw SQL
+        try repo.executeSqlRaw(
+            "ALTER TABLE cats ADD CONSTRAINT unique_name_paws UNIQUE (name, paws)",
+        );
+
+        // Insert first 3 records - should succeed
+        try repo.insert(.Cat, .{ .name = "Hercules", .paws = 4 });
+        try repo.insert(.Cat, .{ .name = "Leo", .paws = 4 });
+        try repo.insert(.Cat, .{ .name = "Hercules", .paws = 3 });
+
+        // Insert record that violates the unique constraint - should fail
+        const violation = repo.insert(.Cat, .{ .name = "Hercules", .paws = 4 });
+        try std.testing.expectError(error.PG, violation);
+
+        // Verify we only have 3 records
+        const count = try repo.Query(.Cat).count().execute(&repo);
+        try std.testing.expectEqual(@as(i64, 3), count);
+    }
 }
 
 test "transactions" {
