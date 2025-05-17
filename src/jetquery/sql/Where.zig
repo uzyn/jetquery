@@ -360,6 +360,29 @@ pub const Node = union(enum) {
                 // For IN/NOT IN, we want to use PostgreSQL's ANY/ALL syntax
                 // Format: column = ANY($1) or column <> ALL($1)
                 // Where $1 is a PostgreSQL array parameter
+                if (triplet.operator == .in_ or triplet.operator == .not_in) {
+                    // For IN/NOT IN operators, we include parentheses here
+                    writer.print(" {s}(", .{operator}) catch unreachable;
+                    
+                    switch (triplet.rhs) {
+                        .value => |value| {
+                            writer.print("{s}", .{Adapter.paramSql(value.index)}) catch unreachable;
+                        },
+                        .column => |column| {
+                            writer.print("{s}", .{Adapter.columnSql(column)}) catch unreachable;
+                        },
+                        .string => |string| {
+                            // Raw strings are always comptime-known
+                            writer.print(string, .{}) catch unreachable;
+                        },
+                    }
+                    
+                    // Close the parentheses
+                    writer.print(")", .{}) catch unreachable;
+                    return;
+                }
+                
+                // Regular operators without parentheses
                 writer.print(" {s} ", .{operator}) catch unreachable;
 
                 switch (triplet.rhs) {

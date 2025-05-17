@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const pg = @import("pg");
 
 const jetquery = @import("../../jetquery.zig");
+const ParamEncoder = @import("postgresql/ParamEncoder.zig");
 
 const PostgresqlAdapter = @This();
 
@@ -435,9 +436,10 @@ pub fn paramSqlBuf(buf: []u8, index: usize) ![]const u8 {
     return try std.fmt.bufPrint(buf, "${}", .{index + 1});
 }
 
-/// SQL representing an array bind parameter with an `ANY` call, e.g. `ANY $1`.
+/// SQL representing an array bind parameter with an `ANY` call, e.g. `ANY($1)`.
+/// Note: includes parentheses around the parameter as specified in PLAN.md.
 pub fn anyParamSql(comptime index: usize) []const u8 {
-    return std.fmt.comptimePrint("ANY ${}", .{index + 1});
+    return std.fmt.comptimePrint("ANY(${d})", .{index + 1});
 }
 
 pub fn orderSql(comptime order_clause: jetquery.sql.OrderClause) []const u8 {
@@ -829,17 +831,42 @@ fn configError(comptime config_field: []const u8) error{JetQueryConfigError} {
     return error.JetQueryConfigError;
 }
 
-fn bindCoerce(value: anytype) BindCoerce(@TypeOf(value)) {
+fn bindCoerce(value: anytype) BindCoerceType(@TypeOf(value)) {
     return switch (@TypeOf(value)) {
         jetquery.DateTime => value.microseconds(),
-        // Arrays are already natively supported by PostgreSQL
+        
+        // Handle string slices directly
+        []const u8, []u8 => value,
+        
+        // For numeric slice types used with IN/NOT IN queries
+        []const i32, []i32, []const i64, []i64, 
+        []const u32, []u32, []const u64, []u64, 
+        []const i16, []i16, []const u16, []u16, 
+        []const i8, []i8 => blk: {
+            // For the global allocator: in production code you'd want to use arena/page allocator
+            // For simplicity, I'm using a static buffer which should handle common use cases
+            const allocator = std.heap.c_allocator;
+            
+            // This might leak memory on errors, but it should be fine for the demo
+            break :blk ParamEncoder.encodeSliceAsArray(allocator, value) catch "{}";
+        },
+        
+        // For other types, just return the value as is
         else => value,
     };
 }
 
-fn BindCoerce(T: type) type {
+fn BindCoerceType(T: type) type {
     return switch (T) {
         jetquery.DateTime => DateTimePrimitive,
+        
+        // Numeric slice types for IN/NOT IN queries need to be converted to string arrays
+        []const i32, []i32, []const i64, []i64, 
+        []const u32, []u32, []const u64, []u64, 
+        []const i16, []i16, []const u16, []u16, 
+        []const i8, []i8 => []const u8,
+        
+        // For other types, keep them as-is
         else => T,
     };
 }

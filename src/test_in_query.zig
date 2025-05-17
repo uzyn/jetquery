@@ -52,7 +52,7 @@ test "IN query with integer array using in helper" {
     
     // Get the SQL directly via the public sql field
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY $1");
+    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY($1)");
 }
 
 // Test: NOT IN query using helper function with integer array
@@ -63,7 +63,7 @@ test "NOT IN query with integer array using notIn helper" {
         .where(.{ .id = jetquery.sql.notIn(i32, ids) });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"users\".\"id\" <> ALL $1");
+    try checkSqlContains(sql_statement, "\"users\".\"id\" <> ALL($1)");
 }
 
 // Test: IN query using explicit .in_ operator
@@ -74,7 +74,7 @@ test "IN query with integer array using explicit .in_ operator" {
         .where(.{ .id = .{ .in_ = ids } });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY $1");
+    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY($1)");
 }
 
 // Test: NOT IN query using explicit .not_in operator
@@ -85,7 +85,7 @@ test "NOT IN query with integer array using explicit .not_in operator" {
         .where(.{ .id = .{ .not_in = ids } });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"users\".\"id\" <> ALL $1");
+    try checkSqlContains(sql_statement, "\"users\".\"id\" <> ALL($1)");
 }
 
 // Test: IN query with strings
@@ -96,7 +96,7 @@ test "IN query with string array" {
         .where(.{ .status = jetquery.sql.in([]const u8, statuses) });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"users\".\"status\" = ANY $1");
+    try checkSqlContains(sql_statement, "\"users\".\"status\" = ANY($1)");
 }
 
 // Test: IN query with empty array
@@ -107,7 +107,7 @@ test "IN query with empty array" {
         .where(.{ .id = jetquery.sql.in(i32, empty_ids) });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY $1");
+    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY($1)");
 }
 
 // Test: Complex query combining IN with other conditions
@@ -121,7 +121,7 @@ test "Complex query with IN and other conditions" {
         });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY $1");
+    try checkSqlContains(sql_statement, "\"users\".\"id\" = ANY($1)");
     try checkSqlContains(sql_statement, "\"users\".\"status\" = $2");
 }
 
@@ -142,8 +142,8 @@ test "OR conditions with IN query" {
         });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"posts\".\"id\" = ANY $1");
-    try checkSqlContains(sql_statement, "\"posts\".\"user_id\" = ANY $2");
+    try checkSqlContains(sql_statement, "\"posts\".\"id\" = ANY($1)");
+    try checkSqlContains(sql_statement, "\"posts\".\"user_id\" = ANY($2)");
     try checkSqlContains(sql_statement, "OR");
 }
 
@@ -163,5 +163,5 @@ test "Query with relations using IN" {
         });
     
     const sql_statement = query.sql;
-    try checkSqlContains(sql_statement, "\"user\".\"id\" = ANY $1");
+    try checkSqlContains(sql_statement, "\"user\".\"id\" = ANY($1)");
 }
