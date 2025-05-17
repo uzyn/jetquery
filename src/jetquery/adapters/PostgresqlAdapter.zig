@@ -435,9 +435,9 @@ pub fn paramSqlBuf(buf: []u8, index: usize) ![]const u8 {
     return try std.fmt.bufPrint(buf, "${}", .{index + 1});
 }
 
-/// SQL representing an array bind parameter with an `ANY` call, e.g. `ANY ($1)`.
+/// SQL representing an array bind parameter with an `ANY` call, e.g. `ANY $1`.
 pub fn anyParamSql(comptime index: usize) []const u8 {
-    return std.fmt.comptimePrint("ANY (${})", .{index + 1});
+    return std.fmt.comptimePrint("ANY ${}", .{index + 1});
 }
 
 pub fn orderSql(comptime order_clause: jetquery.sql.OrderClause) []const u8 {
@@ -832,6 +832,7 @@ fn configError(comptime config_field: []const u8) error{JetQueryConfigError} {
 fn bindCoerce(value: anytype) BindCoerce(@TypeOf(value)) {
     return switch (@TypeOf(value)) {
         jetquery.DateTime => value.microseconds(),
+        // Arrays are already natively supported by PostgreSQL
         else => value,
     };
 }

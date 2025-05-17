@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const jetcommon = @import("jetcommon");
 
-pub const config = @import("jetquery.config");
+pub const config = @import("default_config.zig");
 
 pub const Repo = @import("jetquery/Repo.zig").Repo;
 

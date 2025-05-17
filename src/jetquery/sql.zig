@@ -6,6 +6,15 @@ pub const render = @import("sql/render.zig").render;
 pub const renderUpdateRuntime = @import("sql/render.zig").renderUpdateRuntime;
 pub const Where = @import("sql/Where.zig");
 
+// IN query helpers
+const In_ = @import("sql/In.zig");
+pub const in = In_.in;
+pub const notIn = In_.notIn;
+pub const InExpr = In_.InExpr;
+pub const NotInExpr = In_.NotInExpr;
+pub const isInExpr = In_.isInExpr;
+pub const isNotInExpr = In_.isNotInExpr;
+
 pub const FieldState = struct {
     name: []const u8,
     modified: bool,

@@ -185,6 +185,8 @@ pub const Node = union(enum) {
             gt_eql,
             like,
             ilike, // Not supported by all databases
+            in_,   // NEW - For IN queries, rendered as = ANY() in PostgreSQL
+            not_in, // NEW - For NOT IN queries, rendered as <> ALL() in PostgreSQL
         };
 
         pub const Operand = union(enum) {
@@ -351,8 +353,13 @@ pub const Node = union(enum) {
                     .gt_eql => ">=",
                     .like => "LIKE",
                     .ilike => "ILIKE", // Not supported by all databases
+                    .in_ => "= ANY", // Render IN as = ANY() for PostgreSQL
+                    .not_in => "<> ALL", // Render NOT IN as <> ALL() for PostgreSQL
                 };
 
+                // For IN/NOT IN, we want to use PostgreSQL's ANY/ALL syntax
+                // Format: column = ANY($1) or column <> ALL($1)
+                // Where $1 is a PostgreSQL array parameter
                 writer.print(" {s} ", .{operator}) catch unreachable;
 
                 switch (triplet.rhs) {
@@ -573,6 +580,71 @@ fn nodeTree(
     comptime value_index: *usize,
 ) Node {
     comptime {
+        // Check for InExpr/NotInExpr helper types first
+        if (@typeInfo(T) == .@"struct" and @hasField(T, "val")) {
+            // This could be either an InExpr or NotInExpr
+            const t: T = undefined;
+            const slice_type = @TypeOf(t.val);
+            
+            // Check for struct declarations to identify the type
+            var is_in_expr = false;
+            var is_not_in_expr = false;
+            
+            for (@typeInfo(T).@"struct".decls) |decl| {
+                if (std.mem.eql(u8, decl.name, "__jetquery_in_expr")) {
+                    is_in_expr = true;
+                } else if (std.mem.eql(u8, decl.name, "__jetquery_not_in_expr")) {
+                    is_not_in_expr = true;
+                }
+            }
+            
+            if (is_in_expr) {
+                // Create a triplet with the column name and an IN operator
+                const column_name = std.enums.nameCast(std.meta.FieldEnum(Table.Definition), name);
+                const triplet = Node.Triplet{
+                    .lhs = .{ .column = columns.translate(Table, relations, .{column_name}, .{})[0] },
+                    .operator = .in_,
+                    .rhs = .{
+                        .value = .{
+                            .field_context = field_context,
+                            .Table = findRelation(Table, relations, path),
+                            .from = findFrom(Table, relations, path),
+                            .name = name,
+                            .type = slice_type,
+                            .source_type = slice_type,
+                            .field_info = field_info,
+                            .path = makePath(path, "val"),
+                            .index = value_index.*,
+                        },
+                    },
+                };
+                value_index.* += 1;
+                return .{ .triplet = triplet };
+            } else if (is_not_in_expr) {
+                // Create a triplet with the column name and a NOT IN operator
+                const column_name = std.enums.nameCast(std.meta.FieldEnum(Table.Definition), name);
+                const triplet = Node.Triplet{
+                    .lhs = .{ .column = columns.translate(Table, relations, .{column_name}, .{})[0] },
+                    .operator = .not_in,
+                    .rhs = .{
+                        .value = .{
+                            .field_context = field_context,
+                            .Table = findRelation(Table, relations, path),
+                            .from = findFrom(Table, relations, path),
+                            .name = name,
+                            .type = slice_type,
+                            .source_type = slice_type,
+                            .field_info = field_info,
+                            .path = makePath(path, "val"),
+                            .index = value_index.*,
+                        },
+                    },
+                };
+                value_index.* += 1;
+                return .{ .triplet = triplet };
+            }
+        }
+    
         if (coercion.canCoerceDelegate(T)) {
             const value = Node.Value{
                 .field_context = field_context,
@@ -590,7 +662,61 @@ fn nodeTree(
         }
 
         return switch (@typeInfo(T)) {
-            .@"struct" => |info| if (T == DateTime) blk: {
+            .@"struct" => |info| if (@hasField(T, "in_")) blk: {
+                // Handle explicit .in_ directly in struct fields
+                // e.g. .id = .{ .in_ = ids }
+                const s: T = undefined;
+                const slice_type = @TypeOf(s.in_);
+                
+                // Create a triplet with the column name and an IN operator
+                const column_name = std.enums.nameCast(std.meta.FieldEnum(Table.Definition), name);
+                const triplet = Node.Triplet{
+                    .lhs = .{ .column = columns.translate(Table, relations, .{column_name}, .{})[0] },
+                    .operator = .in_,
+                    .rhs = .{
+                        .value = .{
+                            .field_context = field_context,
+                            .Table = findRelation(Table, relations, path),
+                            .from = findFrom(Table, relations, path),
+                            .name = name,
+                            .type = slice_type,
+                            .source_type = slice_type,
+                            .field_info = field_info,
+                            .path = makePath(path, "in_"),
+                            .index = value_index.*,
+                        },
+                    },
+                };
+                value_index.* += 1;
+                break :blk .{ .triplet = triplet };
+            } else if (@hasField(T, "not_in")) blk: {
+                // Handle explicit .not_in directly in struct fields 
+                // e.g. .id = .{ .not_in = ids }
+                const s: T = undefined;
+                const slice_type = @TypeOf(s.not_in);
+                
+                // Create a triplet with the column name and a NOT IN operator
+                const column_name = std.enums.nameCast(std.meta.FieldEnum(Table.Definition), name);
+                const triplet = Node.Triplet{
+                    .lhs = .{ .column = columns.translate(Table, relations, .{column_name}, .{})[0] },
+                    .operator = .not_in,
+                    .rhs = .{
+                        .value = .{
+                            .field_context = field_context,
+                            .Table = findRelation(Table, relations, path),
+                            .from = findFrom(Table, relations, path),
+                            .name = name,
+                            .type = slice_type,
+                            .source_type = slice_type,
+                            .field_info = field_info,
+                            .path = makePath(path, "not_in"),
+                            .index = value_index.*,
+                        },
+                    },
+                };
+                value_index.* += 1;
+                break :blk .{ .triplet = triplet };
+            } else if (T == DateTime) blk: {
                 const value = Node.Value{
                     .field_context = field_context,
                     .Table = findRelation(Table, relations, path),
@@ -805,24 +931,36 @@ fn assignValues(
                     comptime concatPath(path, "1"),
                     false,
                 );
-            } else {
-                inline for (info.fields) |field| {
-                    if (comptime isTripletWithRawString(field.type)) {
-                        // The left side is a raw SQL string, let's evaluate the right side (arg
-                        // index 2).
-                        assignValues(
-                            @field(arg, field.name)[2],
-                            Adapter,
-                            ValuesTuple,
-                            values_tuple,
-                            ErrorsTuple,
-                            errors_tuple,
-                            values_fields,
-                            comptime concatPath(path, field.name ++ ".2"),
-                            coerce,
-                        );
-                    } else {
-                        // Recurse to evaluate whatever exists inside this struct.
+            } else if (comptime @typeInfo(@TypeOf(arg)) == .@"struct" and @hasField(@TypeOf(arg), "val")) {
+                // Check if this is a InExpr or NotInExpr type (from the helper functions)
+                var is_in_expr = false;
+                var is_not_in_expr = false;
+                
+                for (@typeInfo(@TypeOf(arg)).@"struct".decls) |decl| {
+                    if (std.mem.eql(u8, decl.name, "__jetquery_in_expr")) {
+                        is_in_expr = true;
+                    } else if (std.mem.eql(u8, decl.name, "__jetquery_not_in_expr")) {
+                        is_not_in_expr = true;
+                    }
+                }
+                
+                if (is_in_expr or is_not_in_expr) {
+                    // This is either an InExpr or NotInExpr helper struct
+                    // We need to access the val field
+                    const field_value = arg.val;
+                    
+                    inline for (values_fields) |value_field| {
+                        if (comptime std.mem.eql(u8, value_field.path, path ++ ".val")) {
+                            // Path matches exactly what we need
+                            const tuple_field_name = std.fmt.comptimePrint("{d}", .{value_field.index});
+                            @field(values_tuple, tuple_field_name) = field_value;
+                            @field(errors_tuple, tuple_field_name) = null;
+                            break;
+                        }
+                    }
+                } else {
+                    // Proceed with normal handling
+                    inline for (info.fields) |field| {
                         assignValues(
                             @field(arg, field.name),
                             Adapter,
@@ -834,6 +972,58 @@ fn assignValues(
                             comptime concatPath(path, field.name),
                             coerce,
                         );
+                    }
+                }
+            } else {
+                // Special handling for objects with .in_ or .not_in fields
+                if (comptime info.fields.len == 1 and 
+                    (std.mem.eql(u8, info.fields[0].name, "in_") or 
+                     std.mem.eql(u8, info.fields[0].name, "not_in"))) {
+                    
+                    // This is an explicit .in_ or .not_in struct
+                    const field_name = info.fields[0].name;
+                    const field_value = @field(arg, field_name);
+                    
+                    inline for (values_fields) |value_field| {
+                        if (comptime std.mem.eql(u8, value_field.path, path ++ "." ++ field_name)) {
+                            // Path matches exactly what we need
+                            const tuple_field_name = std.fmt.comptimePrint("{d}", .{value_field.index});
+                            @field(values_tuple, tuple_field_name) = field_value;
+                            @field(errors_tuple, tuple_field_name) = null;
+                            break;
+                        }
+                    }
+                } else {
+                    // Normal field handling
+                    inline for (info.fields) |field| {
+                        if (comptime isTripletWithRawString(field.type)) {
+                            // The left side is a raw SQL string, let's evaluate the right side (arg
+                            // index 2).
+                            assignValues(
+                                @field(arg, field.name)[2],
+                                Adapter,
+                                ValuesTuple,
+                                values_tuple,
+                                ErrorsTuple,
+                                errors_tuple,
+                                values_fields,
+                                comptime concatPath(path, field.name ++ ".2"),
+                                coerce,
+                            );
+                        } else {
+                            // Recurse to evaluate whatever exists inside this struct.
+                            assignValues(
+                                @field(arg, field.name),
+                                Adapter,
+                                ValuesTuple,
+                                values_tuple,
+                                ErrorsTuple,
+                                errors_tuple,
+                                values_fields,
+                                comptime concatPath(path, field.name),
+                                coerce,
+                            );
+                        }
                     }
                 }
             }
@@ -887,6 +1077,10 @@ fn assignValue(
         // sequential field names to a value, e.g. `.foo.0.1.bar.0.baz`. This means it does not
         // matter which order we evaluate the values in - as long as the path generation logic
         // matches, we are guaranteed to not mismatch values.
+        
+        // We store the path to each value when we generate the values tuple type, then we
+        // re-generate it using the same logic when we walk the values tree. A path is the
+        // sequential field names to a value, e.g. `.foo.0.1.bar.0.baz`.
         matched = comptime std.mem.eql(u8, path, value_field.path);
         if (matched) {
             const field_info = comptime fields.fieldInfo(
@@ -895,6 +1089,8 @@ fn assignValue(
                 value_field.name,
                 value_field.context,
             );
+            
+            // We don't need special handling here since nodeTree already created the right path
             if (comptime coerce) {
                 const coerced: coercion.CoercedValue(
                     Adapter,
