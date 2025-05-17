@@ -669,9 +669,9 @@ pub fn Repo(adapter_name: jetquery.adapters.Name, Schema: type) type {
         pub fn createDatabase(
             self: *AdaptedRepo,
             name: []const u8,
-            options: struct {},
+            options: jetquery.CreateDatabaseOptions,
         ) !void {
-            _ = options;
+            // Build the CREATE DATABASE statement
             var buf = std.ArrayList(u8).init(self.allocator);
             defer buf.deinit();
             const database = try self.adapter.identifierAlloc(self.allocator, name);
@@ -681,15 +681,43 @@ pub fn Repo(adapter_name: jetquery.adapters.Name, Schema: type) type {
 
             try writer.print(
                 \\CREATE DATABASE {s}
-            , .{database});
+            , .{
+                database,
+            });
 
-            const connection = try self.connectManaged();
-            try connection.executeVoid(
-                buf.items,
-                &.{},
-                try jetquery.debug.getCallerInfo(self.debugMutex(), @returnAddress()),
-                self,
-            );
+            // If IF NOT EXISTS is requested, we need special handling since PostgreSQL
+            // doesn't support IF NOT EXISTS for CREATE DATABASE directly
+            if (options.if_not_exists) {
+                // We'll try to create the database, but catch and ignore the error
+                // if it already exists (PG error code 42P04)
+                const connection = try self.connectManaged();
+                _ = connection.executeVoid(
+                    buf.items,
+                    &.{},
+                    try jetquery.debug.getCallerInfo(self.debugMutex(), @returnAddress()),
+                    self,
+                ) catch |err| {
+                    // Check if this is a duplicate database error
+                    if (connection.postgresql.connection.err) |conn_err| {
+                        // PostgreSQL error code 42P04 is "duplicate_database"
+                        // We just ignore this error when if_not_exists is true
+                        if (std.mem.indexOf(u8, conn_err.message, "already exists") != null) {
+                            return;
+                        }
+                    }
+                    // If it's any other error, propagate it
+                    return err;
+                };
+            } else {
+                // Normal create without IF NOT EXISTS - just execute it
+                const connection = try self.connectManaged();
+                try connection.executeVoid(
+                    buf.items,
+                    &.{},
+                    try jetquery.debug.getCallerInfo(self.debugMutex(), @returnAddress()),
+                    self,
+                );
+            }
         }
 
         /// Create a new database in the current repo. Repo must be initialized with the appropriate user
@@ -1666,11 +1694,12 @@ test "optionals" {
 }
 
 fn resetDatabase() !void {
+    // Create a connection to postgres to manage the repo_test database
     var repo = try Repo(.postgresql, void).init(
         std.testing.allocator,
         .{
             .adapter = .{
-                .database = "postgres",
+                .database = "postgres", // Connect to main postgres DB
                 .username = "postgres",
                 .hostname = "127.0.0.1",
                 .password = "password",
@@ -1679,6 +1708,8 @@ fn resetDatabase() !void {
         },
     );
     defer repo.deinit();
+    
+    // Simple drop and create approach, using if_exists for drop and if_not_exists for create
     try repo.dropDatabase("repo_test", .{ .if_exists = true });
-    try repo.createDatabase("repo_test", .{});
+    try repo.createDatabase("repo_test", .{ .if_not_exists = true });
 }

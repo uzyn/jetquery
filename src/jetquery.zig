@@ -45,6 +45,7 @@ pub const AlterTableOptions = struct {
     };
 };
 pub const DropDatabaseOptions = struct { if_exists: bool = false };
+pub const CreateDatabaseOptions = struct { if_not_exists: bool = false };
 pub const CreateIndexOptions = struct {
     unique: bool = false,
     name: ?[]const u8 = null,
@@ -1017,7 +1018,7 @@ test "slice of []const u8 in whereclause" {
 
     const query = Query(TestAdapter, Schema, .Human).where(.{ .name = array.items });
     try std.testing.expectEqualStrings(
-        \\SELECT "humans"."name" FROM "humans" WHERE "humans"."name" = ANY ($1)
+        \\SELECT "humans"."name" FROM "humans" WHERE "humans"."name" = ANY($1)
     , query.sql);
     try std.testing.expect(query.isValid());
 }
@@ -1039,7 +1040,7 @@ test "slice of int in whereclause" {
 
     const query = Query(TestAdapter, Schema, .Human).where(.{ .cats = array.items });
     try std.testing.expectEqualStrings(
-        \\SELECT "humans"."cats" FROM "humans" WHERE "humans"."cats" = ANY ($1)
+        \\SELECT "humans"."cats" FROM "humans" WHERE "humans"."cats" = ANY($1)
     , query.sql);
     try std.testing.expect(query.isValid());
 }
@@ -1061,7 +1062,7 @@ test "slice of float in whereclause" {
 
     const query = Query(TestAdapter, Schema, .Human).where(.{ .favorite_number = array.items });
     try std.testing.expectEqualStrings(
-        \\SELECT "humans"."favorite_number" FROM "humans" WHERE "humans"."favorite_number" = ANY ($1)
+        \\SELECT "humans"."favorite_number" FROM "humans" WHERE "humans"."favorite_number" = ANY($1)
     , query.sql);
     try std.testing.expect(query.isValid());
 }
@@ -1083,7 +1084,7 @@ test "slice of bool in whereclause" {
 
     const query = Query(TestAdapter, Schema, .Human).where(.{ .has_cats = array.items });
     try std.testing.expectEqualStrings(
-        \\SELECT "humans"."has_cats" FROM "humans" WHERE "humans"."has_cats" = ANY ($1)
+        \\SELECT "humans"."has_cats" FROM "humans" WHERE "humans"."has_cats" = ANY($1)
     , query.sql);
     try std.testing.expect(query.isValid());
 }
@@ -1522,7 +1523,7 @@ test "complex whereclause" {
     });
     try std.testing.expect(query.isValid());
     try std.testing.expectEqualStrings(
-        \\SELECT "cats"."id", "cats"."name", "cats"."age", "cats"."favorite_sport", "cats"."status" FROM "cats" INNER JOIN "homes" AS "homes" ON "cats"."id" = "homes"."cat_id" WHERE ("cats"."name" = $1 OR "cats"."name" = $2 AND ("cats"."age" > $3 AND "cats"."age" < $4) AND "cats"."favorite_sport" LIKE $5 AND "cats"."favorite_sport" <> $6 AND my_sql_function(age) = $7 AND ( NOT ("cats"."age" = $8 OR "cats"."age" = $9)) AND age / paws = $10 or age * paws < $11 AND ("cats"."status" IS NULL OR "cats"."status" = ANY ($12)) AND "homes"."zip_code" = $13) ORDER BY "cats"."id" ASC
+        \\SELECT "cats"."id", "cats"."name", "cats"."age", "cats"."favorite_sport", "cats"."status" FROM "cats" INNER JOIN "homes" AS "homes" ON "cats"."id" = "homes"."cat_id" WHERE ("cats"."name" = $1 OR "cats"."name" = $2 AND ("cats"."age" > $3 AND "cats"."age" < $4) AND "cats"."favorite_sport" LIKE $5 AND "cats"."favorite_sport" <> $6 AND my_sql_function(age) = $7 AND ( NOT ("cats"."age" = $8 OR "cats"."age" = $9)) AND age / paws = $10 or age * paws < $11 AND ("cats"."status" IS NULL OR "cats"."status" = ANY($12)) AND "homes"."zip_code" = $13) ORDER BY "cats"."id" ASC
     , query.sql);
 }
 
