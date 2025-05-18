@@ -4,7 +4,6 @@ const builtin = @import("builtin");
 const pg = @import("pg");
 
 const jetquery = @import("../../jetquery.zig");
-const ParamEncoder = @import("postgresql/ParamEncoder.zig");
 
 const PostgresqlAdapter = @This();
 

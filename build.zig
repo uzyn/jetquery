@@ -48,24 +48,6 @@ pub fn build(b: *std.Build) !void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
-    
-    // Add specific test for IN query functionality
-    const in_query_tests = b.addTest(.{
-        .root_source_file = b.path("src/test_in_query.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    in_query_tests.root_module.addImport("jetquery", jetquery_module);
-    in_query_tests.root_module.addImport("pg", pg_dep.module("pg"));
-    in_query_tests.root_module.addImport("jetcommon", jetcommon_module);
-    in_query_tests.root_module.addImport("jetquery.config", config_module);
-    const run_in_query_tests = b.addRunArtifact(in_query_tests);
-    const test_in_step = b.step("test-in", "Run IN query tests");
-    test_in_step.dependOn(&run_in_query_tests.step);
-    
-    // Alias for test-in to make it more descriptive
-    const test_in_query_step = b.step("test-in-query", "Run IN query tests");
-    test_in_query_step.dependOn(&run_in_query_tests.step);
 
     const exe_generate_migrations = b.addExecutable(.{
         .name = "migrations",
