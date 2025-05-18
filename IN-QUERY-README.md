@@ -7,6 +7,7 @@ This document provides examples of using SQL `IN` and `NOT IN` queries in JetQue
   - [Helper Function Syntax](#helper-function-syntax)
   - [Explicit Operator Syntax](#explicit-operator-syntax)
 - [Implementation Details](#implementation-details)
+- [Supported Types](#supported-types)
 - [Examples](#examples)
 
 ## Using IN Queries
@@ -56,6 +57,15 @@ The implementation translates these queries to PostgreSQL's `ANY` and `ALL` oper
 - `NOT IN` is translated to `<> ALL(parameters)`
 
 For array parameters, JetQuery encodes them in PostgreSQL's array format, e.g., `{1,2,3}`.
+
+## Supported Types
+
+The IN and NOT IN operators support arrays of the following types:
+
+- Integer types: `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`
+- String types: `[]const u8`
+- Boolean types: `bool`
+- Optional types: `?T` for any supported type `T`
 
 ## Examples
 
