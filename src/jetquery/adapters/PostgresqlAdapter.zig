@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const pg = @import("pg");
 
 const jetquery = @import("../../jetquery.zig");
+const ParamEncoder = @import("postgresql/ParamEncoder.zig");
 
 const PostgresqlAdapter = @This();
 
@@ -436,8 +437,15 @@ pub fn paramSqlBuf(buf: []u8, index: usize) ![]const u8 {
 }
 
 /// SQL representing an array bind parameter with an `ANY` call, e.g. `ANY ($1)`.
+/// Used for IN queries.
 pub fn anyParamSql(comptime index: usize) []const u8 {
     return std.fmt.comptimePrint("ANY (${})", .{index + 1});
+}
+
+/// SQL representing an array bind parameter with an `ALL` call, e.g. `ALL ($1)`.
+/// Used for NOT IN queries.
+pub fn allParamSql(comptime index: usize) []const u8 {
+    return std.fmt.comptimePrint("ALL (${})", .{index + 1});
 }
 
 pub fn orderSql(comptime order_clause: jetquery.sql.OrderClause) []const u8 {
@@ -829,14 +837,14 @@ fn configError(comptime config_field: []const u8) error{JetQueryConfigError} {
     return error.JetQueryConfigError;
 }
 
-fn bindCoerce(value: anytype) BindCoerce(@TypeOf(value)) {
+fn bindCoerce(value: anytype) BindCoerceType(@TypeOf(value)) {
     return switch (@TypeOf(value)) {
         jetquery.DateTime => value.microseconds(),
         else => value,
     };
 }
 
-fn BindCoerce(T: type) type {
+fn BindCoerceType(T: type) type {
     return switch (T) {
         jetquery.DateTime => DateTimePrimitive,
         else => T,

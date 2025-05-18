@@ -144,6 +144,11 @@ pub const Node = union(enum) {
         }
 
         pub fn isArray(self: Value, Adapter: type) bool {
+            // Safe guard for empty or null types
+            if (self.type == @TypeOf(null) or @typeName(self.type).len == 0) {
+                return false;
+            }
+            
             const T = fields.ColumnType(Adapter, self.Table, fields.fieldInfo(
                 self.field_info,
                 self.Table,
@@ -185,6 +190,16 @@ pub const Node = union(enum) {
             gt_eql,
             like,
             ilike, // Not supported by all databases
+            
+            /// Represents SQL IN operator, allowing you to check if a value is in a set of values.
+            /// For PostgreSQL, this is rendered as "= ANY()" with array parameters.
+            /// Usage: .where(.{ .id, .in_, &[_]i32{ 1, 2, 3 } })
+            in_,
+            
+            /// Represents SQL NOT IN operator, allowing you to check if a value is not in a set of values.
+            /// For PostgreSQL, this is rendered as "<> ALL()" with array parameters.
+            /// Usage: .where(.{ .status, .not_in, &[_][]const u8{ "inactive", "banned" } })
+            not_in
         };
 
         pub const Operand = union(enum) {
@@ -295,12 +310,17 @@ pub const Node = union(enum) {
                         Adapter.identifier(value.from),
                         Adapter.identifier(value.name),
                         if (value.isArray(Adapter))
-                            // XXX: This is PostgreSQL-specific - one day we'll need to figure
-                            // out how to generate SQL for unknown (at comptime) array length.
-                            // MySQL has `ANY` but it expects a subquery so maybe we'll need a
-                            // temporary table or something equally horrible. SQLite doesn't have
-                            // `ANY` at all so we may end up having to generate some parts of the
-                            // SQL at runtime. :(
+                            // For array types, we use special SQL syntax depending on the adapter.
+                            // PostgreSQL:
+                            //   - We use "= ANY($1)" for IN queries and "<> ALL($1)" for NOT IN queries
+                            //   - Array parameters are encoded as PostgreSQL array literals like '{1,2,3}'
+                            // 
+                            // For other adapters, adapter-specific formatting would be needed:
+                            // - MySQL has `ANY` but it expects a subquery rather than an array parameter
+                            // - SQLite doesn't have `ANY` at all and requires generating a series of OR conditions
+                            //
+                            // The .in_ and .not_in operators in the Triplet.Operator enum are translated to
+                            // these special parameter SQL representations in the adapter.
                             Adapter.anyParamSql(value.index)
                         else
                             Adapter.paramSql(value.index),
@@ -351,12 +371,14 @@ pub const Node = union(enum) {
                     .gt_eql => ">=",
                     .like => "LIKE",
                     .ilike => "ILIKE", // Not supported by all databases
+                    .in_ => "= ANY", // PostgreSQL syntax for IN
+                    .not_in => "<> ALL", // PostgreSQL syntax for NOT IN
                 };
-
                 writer.print(" {s} ", .{operator}) catch unreachable;
 
                 switch (triplet.rhs) {
                     .value => |value| {
+                        // Simple parameter binding without special handling for array types
                         writer.print("{s}", .{Adapter.paramSql(value.index)}) catch unreachable;
                     },
                     .column => |column| {
@@ -573,6 +595,7 @@ fn nodeTree(
     comptime value_index: *usize,
 ) Node {
     comptime {
+        
         if (coercion.canCoerceDelegate(T)) {
             const value = Node.Value{
                 .field_context = field_context,

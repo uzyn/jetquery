@@ -9,6 +9,7 @@ Documentation: [https://www.jetzig.dev/documentation/sections/database/introduct
 * Comptime SQL generation
 * PostgreSQL adapter ([pg.zig](https://github.com/karlseguin/pg.zig))
 * Powerful `WHERE` clause syntax
+  * Support for SQL `IN` and `NOT IN` queries
 * Object Relational Mapper (ORM)
 * Migrations
 * Relations/Associations
@@ -44,6 +45,8 @@ const query = Query(.postgresql, Schema, .Cat)
         .{ .NOT, .{ .{ .age = 1 }, .OR, .{ .age = 2 } } },
         .{ "age / paws = ? or age * paws < ?", .{ 2, 10 } },
         .{ .{ .status = null }, .OR, .{ .status = [_][]const u8{ "sleeping", "eating" } } },
+        .{ .id, .in_, &[_]i32{ 1, 2, 3, 4 } },
+        .{ .status, .not_in, &[_][]const u8{ "sick", "injured" } },
         .{ .homes = .{ .zip_code = "10304" } },
     });
 

@@ -127,6 +127,15 @@ pub inline fn column(T: type, comptime sql: []const u8) jetquery.columns.Column 
     };
 }
 
+// IN query helpers
+const In_ = @import("sql/In.zig");
+pub const in = In_.in;
+pub const notIn = In_.notIn;
+pub const InExpr = In_.InExpr;
+pub const NotInExpr = In_.NotInExpr;
+pub const isInExpr = In_.isInExpr;
+pub const isNotInExpr = In_.isNotInExpr;
+
 pub fn translateOrderBy(
     Table: type,
     relations: []const type,
