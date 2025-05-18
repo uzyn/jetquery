@@ -28,11 +28,11 @@ test "parameter formatters exist" {
 }
 
 // Simple test of the Operator enum values
-test "triplet operators include in_ and not_in" {
+test "triplet operators include in_any and not_in" {
     const Operator = jetquery.sql.Where.Node.Triplet.Operator;
     
     // These should compile successfully
-    const in_op = Operator.in_;
+    const in_op = Operator.in_any;
     const not_in_op = Operator.not_in;
     
     // Basic checks to prevent dead code elimination
@@ -55,14 +55,14 @@ test "operator rendering" {
                 .gt_eql => ">=",
                 .like => "LIKE",
                 .ilike => "ILIKE",
-                .in_ => "= ANY",
+                .in_any => "= ANY",
                 .not_in => "<> ALL",
             };
         }
     }.convert;
     
     // Check that IN operators are rendered correctly
-    try testing.expectEqualStrings("= ANY", operatorToSql(.in_));
+    try testing.expectEqualStrings("= ANY", operatorToSql(.in_any));
     try testing.expectEqualStrings("<> ALL", operatorToSql(.not_in));
 }
 

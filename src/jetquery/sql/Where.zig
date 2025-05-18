@@ -193,8 +193,8 @@ pub const Node = union(enum) {
             
             /// Represents SQL IN operator, allowing you to check if a value is in a set of values.
             /// For PostgreSQL, this is rendered as "= ANY()" with array parameters.
-            /// Usage: .where(.{ .id, .in_, &[_]i32{ 1, 2, 3 } })
-            in_,
+            /// Usage: .where(.{ .id, .in_any, &[_]i32{ 1, 2, 3 } })
+            in_any,
             
             /// Represents SQL NOT IN operator, allowing you to check if a value is not in a set of values.
             /// For PostgreSQL, this is rendered as "<> ALL()" with array parameters.
@@ -371,7 +371,7 @@ pub const Node = union(enum) {
                     .gt_eql => ">=",
                     .like => "LIKE",
                     .ilike => "ILIKE", // Not supported by all databases
-                    .in_ => "= ANY", // PostgreSQL syntax for IN
+                    .in_any => "= ANY", // PostgreSQL syntax for IN
                     .not_in => "<> ALL", // PostgreSQL syntax for NOT IN
                 };
                 writer.print(" {s} ", .{operator}) catch unreachable;
